@@ -23,7 +23,7 @@ export default function App() {
                 }
             }
         } else {
-            db = SQLite.openDatabase('todo.db');
+            db = SQLite.openDatabase('todo1.db');
         }
         setDb(db);
 
@@ -31,7 +31,9 @@ export default function App() {
         db.transaction((tx) => {
             tx.executeSql(
                 "create table if not exists items (id integer primary key not null, done int, value text);"
-            )
+            ),
+                (_, error) => console.log(error),
+                () => console.log("Table exists or was created")
         })
 
 
@@ -45,8 +47,11 @@ export default function App() {
                     tx.executeSql(
                         "select * from items",
                         [],
-                        (_, { rows }) => setItems(rows._array)
-                    )
+                        (_, { rows }) => setItems(rows._array),
+                        (_,error) => console.log(error)
+                    ),
+                        (_, error) => console.log(error),
+                        () => console.log("items was reloaded")
                 }
             )
         }
@@ -57,21 +62,44 @@ export default function App() {
             (tx) => {
                 tx.executeSql(
                     "insert into items (done, value) values (0, ?)",
-                    [text]
-                )
-                tx.executeSql(
-                    "select * from items",
-                    [],
-                    (_, { rows }) => console.log(JSON.stringify(rows))
+                    [text],
+                    () => console.log("added ", text), // if it work
+                    (_,error) => console.log(error)     // if it doesn't work
                 )
             },
-            () => console.log('addRecord() failed'),
+            (_,error) => console.log('addRecord() failed', error),
             forceUpdate(f => f+1 )
         )
     }
     const readRecord = () => { }
-    const updateRecord = () => { }
-    const deleteRecord = () => { }
+    const updateRecord = (id, done) => {
+        db.transaction(
+            (tx) => {
+                tx.executeSql(
+                    "update items set done = ? where id = ?",
+                    [done,id],
+                    () => console.log("updated record ", id), // if it work
+                    (_, error) => console.log(error)     // if it doesn't work
+                )
+            },
+            (_, error) => console.log('updateRecord() failed', error),
+            forceUpdate(f => f + 1)
+        )
+    }
+    const deleteRecord = (id) => {
+        db.transaction(
+            (tx) => {
+                tx.executeSql(
+                    "delete from items where id = ?",
+                    [id],
+                    () => console.log("deleted record ", id), // if it work
+                    (_, error) => console.log(error)     // if it doesn't work
+                )
+            },
+            (_, error) => console.log('deleteRecord() failed', error),
+            forceUpdate(f => f + 1)
+        )
+    }
 
   return (
     <View style={styles.container}>
@@ -92,17 +120,35 @@ export default function App() {
               </View>
 
           <ScrollView style={styles.scrollArea}>
-              <Text style={styles.sectionHeading}>To Do</Text>
+              <Text style={styles.sectionHeading}>To Do's</Text>
               {items.map(
                   ({ id, done, value }) => {
                       if (!done) return (
-                          <Item key={id} itemId={id} itemText={value}/>
+                          <Item
+                              key={id}
+                              itemId={id}
+                              itemText={value}
+                              onPress={() => { updateRecord(id, 1) }}
+                              onLongPress={() => { deleteRecord(id) }}
+                          />
                           )
 				  })
               }
               <Text style={styles.sectionHeading}>Done</Text>
-
-           </ScrollView>
+              {items.map(
+                  ({ id, done, value }) => {
+                      if (done) return (
+                          <Item
+                              key={id}
+                              itemId={id}
+                              itemText={value}
+                              onPress={() => { updateRecord(id, 0) }}
+                              onLongPress={() => { deleteRecord(id) }}
+                          />
+                      )
+                  })
+              }
+          </ScrollView>
       <StatusBar style="auto" />
     </View>
   );
